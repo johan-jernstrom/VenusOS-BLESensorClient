@@ -82,7 +82,7 @@ The client will start scanning for the device with the specified name and start 
 
 ## Known issues
 
-The bluetooth readings often fails with the following error:
+The bluetooth readings sometimes fails with the following error, but is often picked up after re-connection by the watchdog.
 ```python
 [org.bluez.Error.Failed] Operation failed with ATT error: 0x0e (Unlikely Error)
 ```
