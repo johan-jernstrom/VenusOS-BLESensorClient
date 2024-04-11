@@ -35,16 +35,6 @@ You need to setup some depenacies on your VenusOS first
     ```bash
     opkg update
     ```
-1) Install pip
-    ```bash
-    opkg install python3-pip
-    ```
-1) Install all dependencies, eg:
-    ```bash
-    pip3 install bleak
-    pip3 install asyncio
-    ```
-    **NOTE**: More dependencies might be required to install...
 1) Install git
     ```bash
     opkg install git
@@ -54,6 +44,19 @@ You need to setup some depenacies on your VenusOS first
     cd /data/
     git clone https://github.com/johan-jernstrom/VenusOS-BLESensorClient.git
     cd VenusOS-BLESensorClient
+    ```
+1) Install pip
+    ```bash
+    opkg install python3-pip
+    ```
+1) Install all dependencies, eg:
+    ```bash
+    pip3 install bleak
+    pip3 install asyncio
+    ```
+    **NOTE**: More dependencies might be required to be installed. Test my manually starting the program after install and verify it runs ok:
+    ```bash
+    python /data/VenusOS-BLESensorClient/blesensordbusservice.py
     ```
 
 NOTE: Developed and tested on a Raspberry Pi 3B running Venus OS 3.14 LARGE
