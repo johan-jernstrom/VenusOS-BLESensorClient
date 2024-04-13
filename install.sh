@@ -1,5 +1,15 @@
 #!/bin/sh
 
+Echo "Installing dependencies"
+opkg install python3-pip
+pip3 install bleak
+pip3 install asyncio
+pip3 install argparse
+Echo "Dependencies installed"
+
+# set permissions
+chmod -R 777 /data/VenusOS-BLESensorClient/
+
 # create a symlink to the service directory to make it start automatically by the daemon manager
 ln -s /data/VenusOS-BLESensorClient/service /service/VenusOS-BLESensorClient
 Echo "Service symlink created"

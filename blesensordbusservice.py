@@ -104,7 +104,7 @@ class Sensor:
         for path, settings in self._metadata["Paths"].items():
             self._dbusservice.add_path(path, settings['initial'], writeable=True, onchangecallback=self._handlechangedvalue)
 
-        GLib.timeout_add(2000, exit_on_error, self._update)    # Update the dbus every 2 seconds
+        GLib.timeout_add(5000, exit_on_error, self._update)    # Update the sensor every 5 seconds
         
         logging.info("Service %s started" % self._servicename)
 
@@ -202,7 +202,7 @@ class ClientDbusService:
         settingsList = {'Enabled': [ '/Settings/BLESensorClient/Enabled', 0, 0, 0 ],}
         self.dbusSettings = SettingsDevice(bus=dbus.SystemBus(), supportedSettings=settingsList, timeout = 10, eventCallback = self._handle_enabled_changed)
 
-        GLib.timeout_add(1000, exit_on_error, self._update_state)    # Update the dbus every 1 seconds
+        GLib.timeout_add(2000, exit_on_error, self._update_state)    # Update the dbus every 2 second
 
         logging.info("Service %s started" % self._servicename)
 
@@ -250,7 +250,7 @@ def main():
     ensure_connection(bleClient, clientservice)    
 
     # Watchdog to ensure the client is connected
-    GLib.timeout_add(10000, exit_on_error, ensure_connection, bleClient, clientservice)    # ensure the client is connected every 10 seconds, exit on error
+    GLib.timeout_add(1*60*1000, exit_on_error, ensure_connection, bleClient, clientservice)    # ensure the client is connected every minute
 
     for sensor in sensors:
         Sensor(sensor, bleClient)
