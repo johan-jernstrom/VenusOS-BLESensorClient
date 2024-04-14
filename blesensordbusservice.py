@@ -23,7 +23,7 @@ from gi.repository import GLib
 from dbus.mainloop.glib import DBusGMainLoop
 import dbus
 import dbus.service
-from blesensorclient import BLESensorClient
+from sensorbleclient import SensorBLEClient
 
 # import victron package for updating dbus (using lib from built in service)
 sys.path.insert(1, os.path.join(os.path.dirname(__file__), '/opt/victronenergy/dbus-modem'))
@@ -80,7 +80,7 @@ class SessionBus(dbus.bus.BusConnection):
 def dbusconnection():
     return SessionBus() if 'DBUS_SESSION_BUS_ADDRESS' in os.environ else SystemBus()
 
-class Sensor:
+class SensorDbusService:
     def __init__(self, metadata, bleclient):
         self._bleclient = bleclient
         self._metadata = metadata
@@ -103,18 +103,22 @@ class Sensor:
         for path, settings in self._metadata["Paths"].items():
             self._dbusservice.add_path(path, settings['initial'], writeable=True, onchangecallback=self._handlechangedvalue)
 
-        GLib.timeout_add(5000, exit_on_error, self._update)    # Update the sensor every 5 seconds
+        GLib.timeout_add(1000, exit_on_error, self._update)    # Update the sensor every 5 seconds
         
         logging.info("Service %s started" % self._servicename)
 
+    def _handlechangedvalue(self, path, value):
+        logging.info("Someone else updated %s to %s" % (path, value))
+        return True # accept the change
+    
     def _update(self):
         try:
             type = self._metadata["Type"]
             if type == "temperature":
-                update_sensor_data(self, "/Temperature")
+                self.update_sensor_value(self, "/Temperature")
                 return True # always return True to keep the timeout running
             elif type == "tank":
-                if update_sensor_data(self, "/Level"):
+                if self.update_sensor_value(self, "/Level"):
                     remaining = round(self._metadata["Paths"]["/Capacity"]["initial"] * (self._dbusservice["/Level"] / 100), 6) # calculate remaining volume based on level and capacity, round to 6 decimals since it is in m3
                     self._dbusservice["/Remaining"] = remaining
                     logging.debug("Updated %s%s to %s" % (self._servicename, "/Remaining", remaining))   
@@ -125,53 +129,23 @@ class Sensor:
             logging.error("Error updating sensor: %s", e)
         return True # always return True to keep the timeout running
 
-    def _handlechangedvalue(self, path, value):
-        logging.info("Someone else updated %s to %s" % (path, value))
-        return True # accept the change
-
-def update_sensor_data(sensor, path):
-    if not sensor._bleclient.is_connected():
-        logging.debug("Not connected, skipping update of %s%s" % (sensor._servicename, path))
-        return False    # try again later
-    metadata = sensor._metadata
-    data = sensor._bleclient.read_characteristic(metadata["BLE_Char_UUID"])
-    if data is None:
-        return False # try again later
-    logging.debug("Read characteristic (%s) value: %r", metadata["BLE_Char_UUID"], data)
-    if len(data) >= 8:  # Ensure data has at least 8 bytes
-        double_value = struct.unpack('d', data)[0]
-        value = round(double_value, 1)
-    else:
-        value = int.from_bytes(data, byteorder='little')
-    sensor._dbusservice[path] = value
-    logging.debug("Updated %s%s to %s" % (sensor._servicename, path, sensor._dbusservice[path]))
-    return True
-
-def ensure_connection(bleClient, clientservice):
-    if clientservice.dbusSettings['Enabled'] == 0:
-        logging.debug("Service is disabled, skipping connection attempt")
-        return True     # return True to keep the timeout running
-    
-    if bleClient is None:
-        raise Exception("Client is None. Exiting...")  # An exception will stop the program, waiting for it to be restarted by the daemon supervisor
-
-    logging.debug("Ensuring connection to device")
-    if not bleClient.ensure_connected():
-        duration = clientservice._dbusservice['/ConnectedFor']
-        logging.warning("Lost connection to device after %s. Toggling Bluetooth off and on to reset connection", duration)
-        subprocess.run('bluetoothctl power off', shell=True, check=True)
-        # check_call("bluetoothctl power off")
-        time.sleep(2)
-        # check_call("bluetoothctl power on")
-        subprocess.run('bluetoothctl power on', shell=True, check=True)
-        time.sleep(2)
-        logging.info("Ensuring connection to device after Bluetooth reset")
-        if not bleClient.ensure_connected():
-            logging.error("Could not connect to device after Bluetooth reset. Exiting in 1 minute...")
-            time.sleep(1*60) # wait 1 minute before exiting to avoid restarting the program too quickly
-            raise Exception("Could not connect to device")  # Stop the program, will be restarted by the daemon supervisor
-    
-    return True    # return True to keep the timeout running
+    def update_sensor_value(sensor, path):
+        if not sensor._bleclient.is_connected():
+            logging.debug("Not connected, skipping update of %s%s" % (sensor._servicename, path))
+            return False    # try again later
+        metadata = sensor._metadata
+        data = sensor._bleclient.read_characteristic(metadata["BLE_Char_UUID"])
+        if data is None:
+            return False # try again later
+        logging.debug("Read characteristic (%s) value: %r", metadata["BLE_Char_UUID"], data)
+        if len(data) >= 8:  # Ensure data has at least 8 bytes
+            double_value = struct.unpack('d', data)[0]
+            value = round(double_value, 1)
+        else:
+            value = int.from_bytes(data, byteorder='little')
+        sensor._dbusservice[path] = value
+        logging.debug("Updated %s%s to %s" % (sensor._servicename, path, sensor._dbusservice[path]))
+        return True
 
 class ClientDbusService:
     def __init__(self, bleclient):
@@ -208,9 +182,9 @@ class ClientDbusService:
     def _handle_enabled_changed(self, setting, old, new):
         logging.info("Enabled changed from %s to %s" % (old, new))
         if new == 0:
-            self._bleclient.disconnect()
+            self._bleclient.StopMonitoring()
         else:
-            ensure_connection(self._bleclient, self)
+            self._bleclient.StartMonitoring()
         return True # accept the change
     
     def _update_state(self):
@@ -225,16 +199,17 @@ def main():
     # Have a mainloop, so we can send/receive asynchronous calls to and from dbus
     DBusGMainLoop(set_as_default=True)
     mainloop = GLib.MainLoop()
-    # pass all sensor UUIDs to the BLE client
-    bleClient = BLESensorClient(target_device_name, [sensor["BLE_Char_UUID"] for sensor in sensors])
+
+    # pass all sensor UUIDs to the BLE client to monitor
+    sensorClient = SensorBLEClient(target_device_name, [sensor["BLE_Char_UUID"] for sensor in sensors], mainloop)
 
     # Handle signals to ensure cleanup of the client
     def cleanup(signum, frame):
         try:
             logging.info('Signal handler called with signal %s', signum)
-            if bleClient is not None:
+            if sensorClient is not None:
                 logging.info('Disconnecting client...')
-                bleClient.disconnect()
+                sensorClient.stop_monitoring()
             mainloop.quit()
         except Exception as e:
             logging.error('Error in signal handler: %s', e)
@@ -243,17 +218,20 @@ def main():
     signal.signal(signal.SIGINT, cleanup)
     signal.signal(signal.SIGTERM, cleanup)
 
-    # Create the client service that will be used in the UI to monitor the client
-    clientservice = ClientDbusService(bleClient)
-
-    # Connect to the BLE server
-    ensure_connection(bleClient, clientservice)    
-
-    # Watchdog to ensure the client is connected
-    GLib.timeout_add(1*60*1000, exit_on_error, ensure_connection, bleClient, clientservice)    # ensure the client is connected every minute
-
+    # Create the dbus services
+    clientservice = ClientDbusService(sensorClient)
     for sensor in sensors:
-        Sensor(sensor, bleClient)
+        SensorDbusService(sensor, sensorClient)
+
+    # # Connect to the BLE server
+    # ensure_connection(sensorClient, clientservice)    
+
+    # # Watchdog to ensure the client is connected
+    # GLib.timeout_add(1*60*1000, exit_on_error, ensure_connection, sensorClient, clientservice)    # ensure the client is connected every minute
+
+    if(sensorClient.is_connected()):
+        logging.info("Connected to BLE server")
+    
 
     logging.info('Connected to dbus, and switching over to GLib.MainLoop() (= event based)')
     mainloop.run()

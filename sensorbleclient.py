@@ -1,8 +1,6 @@
 """
 This class is a BLE client that connects to and read values from a BLE server. 
-It wraps the BleakClient class from the Bleak library and makes necessary calls to connect to the server and read characteristics.
-It exposes synchronous methods, attachec to mainloop, for connecting to the server, reading characteristics, and checking connection status 
-that can be used by the event loop of a D-Bus service.
+It runs in a separate thread and continuously monitors the connection to the server and updates values from the server when notified.
 """
 import asyncio
 from datetime import datetime
@@ -11,8 +9,9 @@ import logging
 import subprocess
 from bleak import BleakClient, BleakScanner, BleakGATTCharacteristic
 
-class BLESensorClient:
-    def __init__(self, target_device_name, characteristic_uuids):
+class SensorBLEClient:
+    def __init__(self, target_device_name, characteristic_uuids, mainloop):
+        self.mainloop = mainloop
         self.logger = logging.getLogger(__name__) # create logger
         self.logger.info("Initializing BLE Sensor Client...")
         self.target_device_name = target_device_name
@@ -24,41 +23,37 @@ class BLESensorClient:
         self.monitor_thread = None
         self.Lock = Lock()
 
-    def StartMonitoring(self):
+    def start_monitoring(self):
         self.logger.info("Starting BLE Sensor Client...")
         if self.monitor_thread is not None:
             self.logger.warn("Monitor thread already started. Ignoring request to start again.")
             return
-        self.monitor_thread = Thread(target=asyncio.run, args=(self.__monitorAsync()), daemon=True)
+        self.monitor_thread = Thread(target=self._monitor,name="BLE Sensor Monitoring Thread", daemon=True)
         self.monitor_thread.start()
 
-    def StopMonitoring(self):
+    def stop_monitoring(self):
         self.logger.info("Stopping BLE Sensor Client...")
         if self.monitor_thread is None:
             self.logger.warn("Monitor thread not started. Ignoring request to stop.")
             return
-        self.monitor_thread.join()
-        self.monitor_thread = None
+        self.active = False         # signal to stop monitoring
+        self.monitor_thread.join()  # wait for thread to stop
+        self.monitor_thread = None  # reset thread
 
-    async def __monitorAsync(self):
+    def _monitor(self):
+        asyncio.run(self._monitorAsync())
 
-        while True:
+    async def _monitorAsync(self):
+        self.active = True
+        while self.active:
             try:
                 await self._ensure_connected()
-                await asyncio.sleep(10)  # check every 10 seconds
+                await asyncio.sleep(1)  # check connection every 1 second
             except Exception as e:
                 self.logger.error("Error monitoring client: %s", e)
-            finally:
-                self.Lock.release()
-
-    async def _disconnect(self):
-        try:
-            if self.client is not None and self.client.is_connected:
-                self.logger.info("Disconnecting client...")
-                await self.client.disconnect()
-                self.connected_at = None
-        except Exception as e:
-            self.logger.error("Error disconnecting client: %s", e)
+                self.mainloop.quit()
+        await self.__disconnect_client()
+        self.logger.info("Monitoring thread stopped")
     
     async def _connect(self):
         try:
@@ -73,13 +68,22 @@ class BLESensorClient:
             self.logger.info("Connected to device!")
             self.connected_at = datetime.now()
 
-            for characteristic in self.target_characteristics:
+            for characteristic in self.characteristic_uuids:
                 self.logger.info("Subscribing to characteristic: %s", characteristic)
                 await self.client.start_notify(characteristic, self._notification_handler)
             return True
         except Exception as e:
             self.logger.error("Error connecting to device: %s", e)
             return False
+        
+    async def _disconnect(self):
+        try:
+            if self.client is not None and self.client.is_connected:
+                self.logger.info("Disconnecting client...")
+                await self.client.disconnect()
+                self.connected_at = None
+        except Exception as e:
+            self.logger.error("Error disconnecting client: %s", e)
         
     def _notification_handler(self, characteristic: BleakGATTCharacteristic, data: bytearray):
         try:
@@ -89,17 +93,18 @@ class BLESensorClient:
         except Exception as e:
             self.logger.error("Error handling notification: %s", e)
         finally:
-            self.Lock.release()
+            if self.Lock.locked():
+                self.Lock.release()
         
     async def _ensure_connected(self):
         try:
-            if self.Is_Connected():
+            if self.is_connected():
                 return
-            
             self.logger.info("Client is not connected. Attempting to connect...")
             if(await self._connect()):
                 self.logger.info("Connected to device")
                 return
+            self.logger.error("Could not connect to device. Resetting Bluetooth...")
             subprocess.run('bluetoothctl power off', shell=True, check=True)
             # check_call("bluetoothctl power off")
             await asyncio.sleep(2)
@@ -110,21 +115,25 @@ class BLESensorClient:
             if(await self._connect()):
                 self.logger.info("Connected to device")
                 return
-            logging.error("Could not connect to device after Bluetooth reset. Exiting in 1 minute...")
-            raise Exception("Could not connect to device")  # Stop the program, will be restarted by the daemon supervisor
+            logging.error("Could not connect to device after Bluetooth reset. Exiting driver...")
+            raise Exception("Could not connect to device")  # Rasing exception to stop the main loop
         except Exception as e:
             self.logger.error("Error ensuring connection: %s", e)
+            self.mainloop.quit()
 
-    def Get_Characteristic_Value(self, uuid):
+    def get_characteristic_value(self, uuid):
         try:
             self.Lock.acquire()
-            return self.characteristic_values[uuid] if uuid in self.characteristic_values else None
+            if uuid in self.characteristic_values:
+                return self.characteristic_values[uuid]
+            return None
         except Exception as e:
             self.logger.error("Error getting characteristic value: %s", e)
         finally:
-            self.Lock.release()
+            if self.Lock.locked():
+                self.Lock.release()
 
-    def Is_Connected(self):
+    def is_connected(self):
         is_connected = self.client is not None and self.client.is_connected
         if not is_connected:
             self.logger.debug("Client is not connected")
@@ -134,9 +143,6 @@ class BLESensorClient:
     def connected_for(self):
         return datetime.now() - self.connected_at if self.connected_at is not None else None
 
-    def disconnect(self):
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(self.__disconnect_client())
 
 class DeviceNotFoundError(Exception):
     pass
