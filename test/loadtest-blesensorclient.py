@@ -68,7 +68,7 @@ def main():
             ensure_connection(bleClient)    
             while True :
                 for sensor in sensors:
-                    data = bleClient.read_characteristic(sensor["BLE_Char_UUID"])
+                    data = bleClient.Get_Characteristic_Value(sensor["BLE_Char_UUID"])
                     if data is None:
                         raise Exception("Could not read characteristic")
                     logging.debug("Read characteristic (%s) value: %r", sensor["BLE_Char_UUID"], data)
@@ -85,7 +85,7 @@ def main():
             sensor = sensors[0]
             while True :
                 # for sensor in sensors:
-                data = bleClient.read_characteristic(sensor["BLE_Char_UUID"])
+                data = bleClient.Get_Characteristic_Value(sensor["BLE_Char_UUID"])
                 if data is None:
                     raise Exception("Could not read characteristic")
                 logging.debug("Read characteristic (%s) value: %r", sensor["BLE_Char_UUID"], data)

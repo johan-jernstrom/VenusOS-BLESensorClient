@@ -12,7 +12,6 @@ https://github.com/victronenergy/velib_python/blob/master/dbusdummyservice.py
 import platform
 import argparse
 import logging
-import subprocess
 import sys
 import os
 from subprocess import check_call
@@ -226,7 +225,8 @@ def main():
     # Have a mainloop, so we can send/receive asynchronous calls to and from dbus
     DBusGMainLoop(set_as_default=True)
     mainloop = GLib.MainLoop()
-    bleClient = BLESensorClient(target_device_name)
+    # pass all sensor UUIDs to the BLE client
+    bleClient = BLESensorClient(target_device_name, [sensor["BLE_Char_UUID"] for sensor in sensors])
 
     # Handle signals to ensure cleanup of the client
     def cleanup(signum, frame):
