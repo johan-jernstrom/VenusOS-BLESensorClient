@@ -14,8 +14,7 @@ import argparse
 import logging
 import sys
 import os
-from subprocess import check_call
-import time
+from datetime import datetime
 import struct
 import signal
 from os import _exit as os_exit
@@ -103,7 +102,7 @@ class SensorDbusService:
         for path, settings in self._metadata["Paths"].items():
             self._dbusservice.add_path(path, settings['initial'], writeable=True, onchangecallback=self._handlechangedvalue)
 
-        GLib.timeout_add(1000, exit_on_error, self._update)    # Update the sensor every 5 seconds
+        GLib.timeout_add(1000, exit_on_error, self._update)    # Update the sensor every second
         
         logging.info("Service %s started" % self._servicename)
 
@@ -112,29 +111,25 @@ class SensorDbusService:
         return True # accept the change
     
     def _update(self):
-        try:
-            type = self._metadata["Type"]
-            if type == "temperature":
-                self.update_sensor_value(self, "/Temperature")
-                return True # always return True to keep the timeout running
-            elif type == "tank":
-                if self.update_sensor_value(self, "/Level"):
-                    remaining = round(self._metadata["Paths"]["/Capacity"]["initial"] * (self._dbusservice["/Level"] / 100), 6) # calculate remaining volume based on level and capacity, round to 6 decimals since it is in m3
-                    self._dbusservice["/Remaining"] = remaining
-                    logging.debug("Updated %s%s to %s" % (self._servicename, "/Remaining", remaining))   
-                return True # always return True to keep the timeout running
-            else:
-                logging.error("Unknown sensor type: %s" % type)
-        except Exception as e:
-            logging.error("Error updating sensor: %s", e)
-        return True # always return True to keep the timeout running
+        if not self._bleclient.is_connected():
+            logging.debug("Not connected, skipping update sensor since not connected")
+            return True # return True to keep the timeout running
+        
+        type = self._metadata["Type"]
+        if type == "temperature":
+            self.update_sensor_value("/Temperature")
+        elif type == "tank":
+            if self.update_sensor_value("/Level"):
+                remaining = round(self._metadata["Paths"]["/Capacity"]["initial"] * (self._dbusservice["/Level"] / 100), 6) # calculate remaining volume based on level and capacity, round to 6 decimals since it is in m3
+                self._dbusservice["/Remaining"] = remaining
+                logging.debug("Updated %s%s to %s" % (self._servicename, "/Remaining", remaining))   
+        else:
+            logging.error("Unknown sensor type: %s" % type)
+        return True     # return True to keep the timeout running
 
-    def update_sensor_value(sensor, path):
-        if not sensor._bleclient.is_connected():
-            logging.debug("Not connected, skipping update of %s%s" % (sensor._servicename, path))
-            return False    # try again later
-        metadata = sensor._metadata
-        data = sensor._bleclient.read_characteristic(metadata["BLE_Char_UUID"])
+    def update_sensor_value(self, path):
+        metadata = self._metadata
+        data = self._bleclient.get_characteristic_value(metadata["BLE_Char_UUID"])
         if data is None:
             return False # try again later
         logging.debug("Read characteristic (%s) value: %r", metadata["BLE_Char_UUID"], data)
@@ -143,8 +138,8 @@ class SensorDbusService:
             value = round(double_value, 1)
         else:
             value = int.from_bytes(data, byteorder='little')
-        sensor._dbusservice[path] = value
-        logging.debug("Updated %s%s to %s" % (sensor._servicename, path, sensor._dbusservice[path]))
+        self._dbusservice[path] = value
+        logging.info("Updated %s%s to %s" % (self._servicename, path, self._dbusservice[path]))
         return True
 
 class ClientDbusService:
@@ -190,9 +185,7 @@ class ClientDbusService:
     def _update_state(self):
         logging.debug("Updating state of the Client DbusService")
         self._dbusservice['/State'] = 'Connected' if self._bleclient.is_connected() else 'Not connected'
-        duration = self._bleclient.connected_for()
-        if duration is not None:
-            self._dbusservice['/ConnectedFor'] = str(duration).split('.')[0]
+        self._dbusservice['/ConnectedFor'] = str(datetime.now() - self._bleclient.connected_at).split('.')[0] if self._bleclient.connected_at is not None else '-'
         return True
 
 def main():
@@ -219,22 +212,21 @@ def main():
     signal.signal(signal.SIGTERM, cleanup)
 
     # Create the dbus services
-    clientservice = ClientDbusService(sensorClient)
+    clientDbusService = ClientDbusService(sensorClient)
     for sensor in sensors:
         SensorDbusService(sensor, sensorClient)
 
-    # # Connect to the BLE server
-    # ensure_connection(sensorClient, clientservice)    
-
-    # # Watchdog to ensure the client is connected
-    # GLib.timeout_add(1*60*1000, exit_on_error, ensure_connection, sensorClient, clientservice)    # ensure the client is connected every minute
-
-    if(sensorClient.is_connected()):
-        logging.info("Connected to BLE server")
+    if(clientDbusService.dbusSettings is not None):
+        logging.info('Settings device created')
     
+    if clientDbusService.dbusSettings["Enabled"] == 1:
+        sensorClient.start_monitoring()
+    else:
+        logging.info('BLE Sensor Client is disabled')
 
     logging.info('Connected to dbus, and switching over to GLib.MainLoop() (= event based)')
     mainloop.run()
+    sensorClient.stop_monitoring()
     logging.info('Exiting...')
 
 if __name__ == "__main__":

@@ -140,9 +140,5 @@ class SensorBLEClient:
             self.connected_at = None
         return is_connected
     
-    def connected_for(self):
-        return datetime.now() - self.connected_at if self.connected_at is not None else None
-
-
 class DeviceNotFoundError(Exception):
     pass
