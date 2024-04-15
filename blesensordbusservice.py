@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 
 """
 This is a service driver for the dbus in venus os. 
@@ -177,9 +177,9 @@ class ClientDbusService:
     def _handle_enabled_changed(self, setting, old, new):
         logging.info("Enabled changed from %s to %s" % (old, new))
         if new == 0:
-            self._bleclient.StopMonitoring()
+            self._bleclient.stop_monitoring()
         else:
-            self._bleclient.StartMonitoring()
+            self._bleclient.start_monitoring()
         return True # accept the change
     
     def _update_state(self):
