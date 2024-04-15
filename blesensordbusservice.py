@@ -132,14 +132,14 @@ class SensorDbusService:
         data = self._bleclient.get_characteristic_value(metadata["BLE_Char_UUID"])
         if data is None:
             return False # try again later
-        logging.debug("Read characteristic (%s) value: %r", metadata["BLE_Char_UUID"], data)
+        logging.debug("Got characteristic (%s) value: %r", metadata["BLE_Char_UUID"], data)
         if len(data) >= 8:  # Ensure data has at least 8 bytes
             double_value = struct.unpack('d', data)[0]
             value = round(double_value, 1)
         else:
             value = int.from_bytes(data, byteorder='little')
         self._dbusservice[path] = value
-        logging.info("Updated %s%s to %s" % (self._servicename, path, self._dbusservice[path]))
+        logging.debug("Updated %s%s to %s" % (self._servicename, path, self._dbusservice[path]))
         return True
 
 class ClientDbusService:

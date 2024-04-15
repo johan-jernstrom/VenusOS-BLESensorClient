@@ -21,6 +21,7 @@ class SensorBLEClient:
         self.characteristic_uuids = characteristic_uuids
         self.characteristic_values = {} # store characteristic values
         self.monitor_thread = None
+        self.active = False
         self.Lock = Lock()
 
     def start_monitoring(self):
@@ -52,7 +53,7 @@ class SensorBLEClient:
             except Exception as e:
                 self.logger.error("Error monitoring client: %s", e)
                 self.mainloop.quit()
-        await self.__disconnect_client()
+        await self._disconnect()
         self.logger.info("Monitoring thread stopped")
     
     async def _connect(self):
@@ -88,7 +89,7 @@ class SensorBLEClient:
     def _notification_handler(self, characteristic: BleakGATTCharacteristic, data: bytearray):
         try:
             self.Lock.acquire()
-            self.logger.info("Notification received for characteristic (%s): %r", characteristic.uuid, data)
+            self.logger.debug("Notification received for characteristic (%s): %r", characteristic.uuid, data)
             self.characteristic_values[characteristic.uuid] = data
         except Exception as e:
             self.logger.error("Error handling notification: %s", e)
