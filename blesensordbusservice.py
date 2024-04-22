@@ -40,7 +40,7 @@ sensors =   [
                 {
                     "BLE_Char_UUID": "c6db06e1-7f34-48ff-9f1e-f2904ac78525",
                     "Type": "temperature",
-                    "DeviceInstance": 4300,
+                    "DeviceInstance": 4350,
                     "Paths":
                         {
                             '/Temperature': {'initial': 0},
@@ -51,7 +51,7 @@ sensors =   [
                 {
                     "BLE_Char_UUID": "df2be7ec-fb73-40b6-b2cb-3c00d37f2229", # humidity
                     "Type": "temperature",
-                    "DeviceInstance": 4301,
+                    "DeviceInstance": 4351,
                     "Paths":
                         {
                             '/Temperature': {'initial': 0},
@@ -62,7 +62,7 @@ sensors =   [
                 {
                     "BLE_Char_UUID": "22d8381a-e6df-4ad1-a101-5e2e47c0762b",
                     "Type": "tank",
-                    "DeviceInstance": 5302,
+                    "DeviceInstance": 5352,
                     "Paths":
                         {
                             '/Level': {'initial': 0},
@@ -78,7 +78,7 @@ sensors =   [
                 {
                     "BLE_Char_UUID": "9910102a-9d4e-41ce-be93-affba54425c4",
                     "Type": "tank",
-                    "DeviceInstance": 5302,
+                    "DeviceInstance": 5353,
                     "Paths":
                         {
                             '/Level': {'initial': 0},
