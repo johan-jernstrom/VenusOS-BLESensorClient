@@ -37,28 +37,28 @@ target_device_name = "ESP32 BLE Sensor Server" # name of the BLE server device t
 # array of sensors with metadata and settings
 # https://github.com/victronenergy/venus/wiki/dbus#tank-levels for more information on dbus paths
 sensors =   [
-                {
-                    "BLE_Char_UUID": "c6db06e1-7f34-48ff-9f1e-f2904ac78525",
-                    "Type": "temperature",
-                    "DeviceInstance": 4350,
-                    "Paths":
-                        {
-                            '/Temperature': {'initial': 0},
-                            '/TemperatureType' : {'initial': 0},
-                            '/CustomName': {'initial': 'Temp inne'},
-                        }
-                },
-                {
-                    "BLE_Char_UUID": "df2be7ec-fb73-40b6-b2cb-3c00d37f2229", # humidity
-                    "Type": "temperature",
-                    "DeviceInstance": 4351,
-                    "Paths":
-                        {
-                            '/Temperature': {'initial': 0},
-                            '/TemperatureType' : {'initial': 0},
-                            '/CustomName': {'initial': 'Temp ute'},
-                        }
-                },
+                # {
+                #     "BLE_Char_UUID": "c6db06e1-7f34-48ff-9f1e-f2904ac78525",
+                #     "Type": "temperature",
+                #     "DeviceInstance": 4350,
+                #     "Paths":
+                #         {
+                #             '/Temperature': {'initial': 0},
+                #             '/TemperatureType' : {'initial': 0},
+                #             '/CustomName': {'initial': 'Temp inne'},
+                #         }
+                # },
+                # {
+                #     "BLE_Char_UUID": "df2be7ec-fb73-40b6-b2cb-3c00d37f2229", # humidity
+                #     "Type": "temperature",
+                #     "DeviceInstance": 4351,
+                #     "Paths":
+                #         {
+                #             '/Temperature': {'initial': 0},
+                #             '/TemperatureType' : {'initial': 0},
+                #             '/CustomName': {'initial': 'Temp ute'},
+                #         }
+                # },
                 {
                     "BLE_Char_UUID": "22d8381a-e6df-4ad1-a101-5e2e47c0762b",
                     "Type": "tank",
@@ -74,22 +74,22 @@ sensors =   [
                             '/Standard' : {'initial': '2'},  #0=European (resistive); 1=USA (resistive); 2=Not applicable (used for Voltage and Amp sensors)
                         }
                 }
-                ,
-                {
-                    "BLE_Char_UUID": "9910102a-9d4e-41ce-be93-affba54425c4",
-                    "Type": "tank",
-                    "DeviceInstance": 5353,
-                    "Paths":
-                        {
-                            '/Level': {'initial': 0},
-                            '/Remaining' : {'initial': 1},  #m3 remaining in tank (calculated from level and capacity)
-                            '/Capacity' : {'initial': 1},   #m3 total capacity of tank (100%)
-                            '/FluidType' : {'initial': 5},  #0=Fuel; 1=Fresh water; 2=Waste water; 3=Live well; 4=Oil; 5=Black water (sewage); 6=Gasoline; 7=Diesel; 8=Liquid  Petroleum Gas (LPG); 9=Liquid Natural Gas (LNG); 10=Hydraulic oil; 11=Raw water
-                            '/Status' : {'initial': 0},
-                            '/CustomName': {'initial': 'Septiktank'},
-                            '/Standard' : {'initial': '2'},  #0=European (resistive); 1=USA (resistive); 2=Not applicable (used for Voltage and Amp sensors)
-                        }
-                }
+                # ,
+                # {
+                #     "BLE_Char_UUID": "9910102a-9d4e-41ce-be93-affba54425c4",
+                #     "Type": "tank",
+                #     "DeviceInstance": 5353,
+                #     "Paths":
+                #         {
+                #             '/Level': {'initial': 0},
+                #             '/Remaining' : {'initial': 1},  #m3 remaining in tank (calculated from level and capacity)
+                #             '/Capacity' : {'initial': 1},   #m3 total capacity of tank (100%)
+                #             '/FluidType' : {'initial': 5},  #0=Fuel; 1=Fresh water; 2=Waste water; 3=Live well; 4=Oil; 5=Black water (sewage); 6=Gasoline; 7=Diesel; 8=Liquid  Petroleum Gas (LPG); 9=Liquid Natural Gas (LNG); 10=Hydraulic oil; 11=Raw water
+                #             '/Status' : {'initial': 0},
+                #             '/CustomName': {'initial': 'Septiktank'},
+                #             '/Standard' : {'initial': '2'},  #0=European (resistive); 1=USA (resistive); 2=Not applicable (used for Voltage and Amp sensors)
+                #         }
+                # }
 ]
 
 # END CONFIGURATION
