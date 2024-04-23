@@ -103,7 +103,6 @@ class SensorBLEClient:
                 return
             self.logger.info("Client is not connected. Attempting to connect...")
             if(await self._connect()):
-                self.logger.info("Connected to device")
                 return
             self.logger.error("Could not connect to device. Resetting Bluetooth...")
             subprocess.run('bluetoothctl power off', shell=True, check=True)
