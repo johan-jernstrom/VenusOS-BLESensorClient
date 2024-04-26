@@ -38,12 +38,11 @@ target_device_name = "ESP32 BLE Sensor Server" # name of the BLE server device t
 # https://github.com/victronenergy/venus/wiki/dbus#tank-levels for more information on dbus paths
 sensors =   [
                 {
-                    "BLE_Char_UUID": "22d8381a-e6df-4ad1-a101-5e2e47c0762b",
                     "Type": "tank",
                     "DeviceInstance": 5350,
                     "Paths":
                         {
-                            '/Level': {'initial': 0},
+                            '/Level': {'initial': 0, 'BLE_Char_UUID': '22d8381a-e6df-4ad1-a101-5e2e47c0762b'},
                             '/Remaining' : {'initial': 1},  #m3 remaining in tank (calculated from level and capacity)
                             '/Capacity' : {'initial': 1},   #m3 total capacity of tank (100%)
                             '/FluidType' : {'initial': 1},  #0=Fuel; 1=Fresh water; 2=Waste water; 3=Live well; 4=Oil; 5=Black water (sewage); 6=Gasoline; 7=Diesel; 8=Liquid  Petroleum Gas (LPG); 9=Liquid Natural Gas (LNG); 10=Hydraulic oil; 11=Raw water
@@ -54,12 +53,11 @@ sensors =   [
                 }
                 ,
                 {
-                    "BLE_Char_UUID": "9910102a-9d4e-41ce-be93-affba54425c4",
                     "Type": "tank",
                     "DeviceInstance": 5351,
                     "Paths":
                         {
-                            '/Level': {'initial': 0},
+                            '/Level': {'initial': 0, 'BLE_Char_UUID': '9910102a-9d4e-41ce-be93-affba54425c4'},
                             '/Remaining' : {'initial': 1},  #m3 remaining in tank (calculated from level and capacity)
                             '/Capacity' : {'initial': 1},   #m3 total capacity of tank (100%)
                             '/FluidType' : {'initial': 5},  #0=Fuel; 1=Fresh water; 2=Waste water; 3=Live well; 4=Oil; 5=Black water (sewage); 6=Gasoline; 7=Diesel; 8=Liquid  Petroleum Gas (LPG); 9=Liquid Natural Gas (LNG); 10=Hydraulic oil; 11=Raw water
@@ -75,21 +73,10 @@ sensors =   [
                     "DeviceInstance": 4350,
                     "Paths":
                         {
-                            '/Temperature': {'initial': 0},
+                            '/Temperature': {'initial': 0, 'BLE_Char_UUID': 'c6db06e1-7f34-48ff-9f1e-f2904ac78525'},
                             '/TemperatureType' : {'initial': 0},
-                            '/CustomName': {'initial': 'Temp inne'},
-                        }
-                }
-                ,
-                {
-                    "BLE_Char_UUID": "df2be7ec-fb73-40b6-b2cb-3c00d37f2229", # humidity
-                    "Type": "temperature",
-                    "DeviceInstance": 4351,
-                    "Paths":
-                        {
-                            '/Temperature': {'initial': 0},
-                            '/TemperatureType' : {'initial': 0},
-                            '/CustomName': {'initial': 'Temp ute'},
+                            '/Humidity': {'initial': 0, 'BLE_Char_UUID': 'df2be7ec-fb73-40b6-b2cb-3c00d37f2229'},
+                            '/CustomName': {'initial': 'Klimat inne'},
                         }
                 }
                 
@@ -148,6 +135,7 @@ class SensorDbusService:
         type = self._metadata["Type"]
         if type == "temperature":
             self.update_sensor_value("/Temperature")
+            self.update_sensor_value("/Humidity")
         elif type == "tank":
             if self.update_sensor_value("/Level"):
                 remaining = round(self._metadata["Paths"]["/Capacity"]["initial"] * (self._dbusservice["/Level"] / 100), 6) # calculate remaining volume based on level and capacity, round to 6 decimals since it is in m3
@@ -159,10 +147,11 @@ class SensorDbusService:
 
     def update_sensor_value(self, path):
         metadata = self._metadata
-        data = self._bleclient.get_characteristic_value(metadata["BLE_Char_UUID"])
+        uuid = metadata["Paths"][path]["BLE_Char_UUID"]
+        data = self._bleclient.get_characteristic_value(uuid)
         if data is None:
             return False # try again later
-        logging.debug("Got characteristic (%s) value: %r", metadata["BLE_Char_UUID"], data)
+        logging.debug("Got characteristic (%s) value: %r", uuid, data)
         if len(data) >= 8:  # Ensure data has at least 8 bytes
             double_value = struct.unpack('d', data)[0]
             value = round(double_value, 1)
@@ -224,7 +213,13 @@ def main():
     mainloop = GLib.MainLoop()
 
     # pass all sensor UUIDs to the BLE client to monitor
-    sensorClient = SensorBLEClient(target_device_name, [sensor["BLE_Char_UUID"] for sensor in sensors], mainloop)
+    uuids = []
+    for sensor in sensors:
+        for path, settings in sensor["Paths"].items():
+            if "BLE_Char_UUID" in settings:
+                uuids.append(settings["BLE_Char_UUID"])
+    logging.info('Starting BLE Sensor Client with target device name: %s and UUIDs: %s', target_device_name, uuids)
+    sensorClient = SensorBLEClient(target_device_name, uuids, mainloop)
 
     # Handle signals to ensure cleanup of the client
     def cleanup(signum, frame):
