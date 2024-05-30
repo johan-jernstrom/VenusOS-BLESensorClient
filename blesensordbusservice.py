@@ -114,7 +114,7 @@ class SensorDbusService:
         self._dbusservice.add_path('/ProductName', 'BLE Sensor Client')
         self._dbusservice.add_path('/FirmwareVersion', 1.0)
         self._dbusservice.add_path('/HardwareVersion', 1.0)
-        self._dbusservice.add_path('/Connected', 1)
+        self._dbusservice.add_path('/Connected', 0)
 
         for path, settings in self._metadata["Paths"].items():
             self._dbusservice.add_path(path, settings['initial'], writeable=True, onchangecallback=self._handlechangedvalue)
@@ -126,12 +126,18 @@ class SensorDbusService:
     def _handlechangedvalue(self, path, value):
         logging.info("Someone else updated %s to %s" % (path, value))
         return True # accept the change
+        return True # accept the change
     
     def _update(self):
         if not self._bleclient.is_connected():
             logging.debug("Not connected, skipping update sensor since not connected")
+            if self._dbusservice["/Connected"] == 1:
+                self._dbusservice["/Connected"] = 0
             return True # return True to keep the timeout running
         
+        if self._dbusservice["/Connected"] == 0:
+            self._dbusservice["/Connected"] = 1
+
         type = self._metadata["Type"]
         if type == "temperature":
             self.update_sensor_value("/Temperature")
