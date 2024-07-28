@@ -11,7 +11,8 @@ Echo "Dependencies installed"
 chmod -R 777 /data/VenusOS-BLESensorClient/
 
 # create a symlink to the service directory to make it start automatically by the daemon manager
-ln -s /data/VenusOS-BLESensorClient/service /service/VenusOS-BLESensorClient
+ln -s /data/VenusOS-BLESensorClient/service/ /opt/victronenergy/service/VenusOS-BLESensorClient
+ln -s /data/VenusOS-BLESensorClient/service/ /service/VenusOS-BLESensorClient
 Echo "Service symlink created"
 
 # backup old PageDeviceInfo.qml once. New firmware upgrade will remove the backup
